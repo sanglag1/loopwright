@@ -19,25 +19,23 @@ You are generating a standalone handoff summary from an active development spec.
 3. **Read the spec**: Read both the plan file (\`<task-name>-plan.md\`) and tasks file (\`<task-name>-tasks.md\`).
    - Treat the plan's **Codebase Map** as the source of truth for key repos, paths, links, and re-entry commands
 
-4. **Review git state**: Check \`git log\` and \`git diff\` (staged and unstaged) for recent work related to the spec. Use this to understand what actually happened vs. what was planned.
+4. **Review git state**: Check \`git log\` and \`git diff\` (staged and unstaged) for recent work related to the spec. Use this to understand what actually happened vs. what was planned. This is your source for what changed — the plan's Decisions & Trade-offs and Risks sections cover the non-obvious *why*.
 
-5. **Read history selectively**: Only open files in \`history/\` if the plan, tasks, and git state do not fully explain non-obvious context, rejected approaches, or blockers. Prefer the latest relevant note(s), not the entire archive.
-
-6. **Determine format**: Check if the user provided a \`--format\` flag:
+5. **Determine format**: Check if the user provided a \`--format\` flag:
    - If \`--format <value>\` was provided, use that format (\`default\`, \`pr\`, \`slack\`, or \`ticket\`).
    - If no format was specified, ask the user which format they want before proceeding.
 
-7. **Ask length preference (slack only)**: If the format is \`slack\`, ask the user for a preferred word limit. Suggest a default of 300 words.
+6. **Ask length preference (slack only)**: If the format is \`slack\`, ask the user for a preferred word limit. Suggest a default of 300 words.
 
-8. **Generate the handoff**: Produce a structured summary using the appropriate format template below. Follow these rules:
+7. **Generate the handoff**: Produce a structured summary using the appropriate format template below. Follow these rules:
    - Describe all changes in **natural language** (prose only) — no raw diff stats, no file lists, no code snippets.
    - Write for a reader who has **no prior context** about the task.
    - Be honest about what's incomplete, blocked, or uncertain.
-   - Use history notes only to add non-obvious context; do not regurgitate the full session archive
+   - Surface only non-obvious context that changes what the reader does next; skip filler.
 
-9. **Write to file**: Save the handoff to \`agent-specs/active/<task-name>/<task-name>-handoff.md\`. If the file already exists from a previous run, overwrite it.
+8. **Write to file**: Save the handoff to \`agent-specs/active/<task-name>/<task-name>-handoff.md\`. If the file already exists from a previous run, overwrite it.
 
-10. **Output to conversation**: Print the full handoff to the conversation. After the handoff, tell the user:
+9. **Output to conversation**: Print the full handoff to the conversation. After the handoff, tell the user:
    > Handoff saved to \`agent-specs/active/<task-name>/<task-name>-handoff.md\` — open the file to copy the raw markdown.
 
 ## Output Format — Default
@@ -153,12 +151,12 @@ What was accomplished and where things stand.
 ## Guidelines
 
 - **Write for humans, not agents**: The handoff will be read by teammates in Slack, PRs, or tickets. Use natural language, not structured data.
-- **Use the concise spec first**: The plan and tasks are the primary source of truth. Pull from \`history/\` only when the concise spec and git state do not explain something important.
+- **Use the concise spec first**: The plan and tasks are the primary source of truth. Fall back to git state only when the spec does not explain something important.
 - **Preserve cross-repo context**: If multiple codebases are involved, name them clearly and keep repo-qualified references so the handoff still makes sense outside the current repo.
 - **No raw diffs or file lists**: Summarize changes in prose. If someone needs the diff, they can look at the PR.
 - **Be honest about state**: If something is half-done, broken, or uncertain, say so clearly. A misleading handoff is worse than no handoff.
 - **Context is king**: The most valuable part of a handoff is the non-obvious context — things that aren't captured in the code or commit messages.
-- **Don't dump the archive**: Preserve historical detail in \`history/\`, but only surface the parts that help the reader act.
+- **Surface only what helps the reader act**: Skip any detail that doesn't change what the reader does next.
 - **Overwrite, don't accumulate**: The handoff file is a snapshot of current state. Previous versions have no value — always overwrite.
 - **Keep format variants distinct**: Don't mix elements between formats. A Slack message should feel like a Slack message, not a miniature PR description.
 `;

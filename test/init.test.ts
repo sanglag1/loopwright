@@ -64,25 +64,30 @@ describe('coding-agents-toolings init', () => {
         expect(content).toContain('## Codebase Map');
         expect(content).toContain('### Repositories');
         expect(content).toContain('Repo / Codebase');
-        expect(content).toContain('history/');
+        // history/ archive mechanism was removed; spec is plan + tasks only
+        expect(content).not.toContain('history/');
+        expect(content).toContain('Conciseness Contract');
+        expect(content).toContain('Self-review pass (mandatory)');
 
         const updateContent = readFileSync(specUpdate, 'utf-8');
         expect(updateContent).toContain('name: spec-update');
         expect(updateContent).toContain('agent-specs/active/');
         expect(updateContent).toContain('Codebase Map');
         expect(updateContent).toContain('multiple microservices or repos');
-        expect(updateContent).toContain('history/');
+        expect(updateContent).not.toContain('history/');
+        expect(updateContent).toContain('there is no separate archive');
 
         const doneContent = readFileSync(specComplete, 'utf-8');
         expect(doneContent).toContain('name: spec-complete');
         expect(doneContent).toContain('agent-specs/completed/');
-        expect(doneContent).toContain('history/');
+        expect(doneContent).not.toContain('history/');
 
         const handoffContent = readFileSync(specHandoff, 'utf-8');
         expect(handoffContent).toContain('name: spec-handoff');
         expect(handoffContent).toContain('agent-specs/active/');
         expect(handoffContent).toContain('Codebase Map');
         expect(handoffContent).toContain('repo-qualified');
+        expect(handoffContent).not.toContain('history/');
 
         const ideMcpContent = readFileSync(ideMcp, 'utf-8');
         expect(ideMcpContent).toContain('name: ide-mcp');
