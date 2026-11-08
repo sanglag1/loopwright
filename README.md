@@ -144,27 +144,30 @@ All worktrees of a repo share one `.loopwright/` in the main worktree (found via
 
 ## Releasing (maintainers)
 
-Pushing a version tag publishes to npm. `.github/workflows/publish.yml` runs on any `v*` tag and:
+`main` only accepts pull requests, so **a release is a merged PR that bumps the `version` in `package.json`**. On every push to `main`, `.github/workflows/publish.yml` checks whether that version is already released; if not, it:
 
-1. Checks the tag equals `v` + the `package.json` version, and that the tagged commit is on `main`.
-2. Runs `npm ci`, the typecheck, and the tests.
-3. Publishes with npm trusted publishing (OIDC; no npm token in the repo). A version already on npm is skipped, not re-published.
-4. Creates the GitHub release with generated notes.
+1. Runs `npm ci`, the typecheck, and the tests.
+2. Publishes to npm with trusted publishing (OIDC; no npm token in the repo). A version already on npm is not re-published.
+3. Creates the `vX.Y.Z` tag on the merge commit and a GitHub release with generated notes.
 
-**To release a new version**, from an up-to-date `main` with a clean tree:
+Pushes that don't change the version (and the `0.0.0` placeholder) release nothing. A failed run leaves no tag; fix the cause, then re-run it from the Actions tab ("Run workflow" on `main`).
+
+**To release a new version:**
 
 ```bash
-npm version patch   # or minor / major; bumps package.json, commits, tags vX.Y.Z
-git push --follow-tags
+git switch main && git pull
+git switch -c release-x.y.z
+npm version patch --no-git-tag-version   # or minor / major; edits package.json + package-lock.json only
+git commit -am "release x.y.z"
+git push -u origin HEAD
+gh pr create --fill                       # merge it once CI is green
 ```
 
-Then watch the "Publish to npm" run under Actions. A failed check (tag/version mismatch, tests) publishes nothing; fix, then delete and re-push the tag.
+**One-time setup** (needed once, for the first release):
 
-**One-time setup** (already done once the package exists; repeat only if the publisher config is lost):
-
-1. The first version must be published by hand, because trusted publishing can only be configured for an existing package: `npm login`, then `npm publish --access public` (`prepublishOnly` builds `dist/` first).
+1. Trusted publishing can only be configured for a package that already exists, so the first version is published by hand from the bump branch before merging: `npm login`, then `npm publish --access public` (`prepublishOnly` builds `dist/` first). Merging the PR then sees the version on npm and only creates the tag and release.
 2. On npmjs.com → `loopwright` → Settings → Trusted publishing, add GitHub Actions with repository `xuansontrinh/loopwright` and workflow `publish.yml`.
-3. A trusted-publisher config that has not completed a publish expires after 48 hours, so release the next version via a tag soon after adding it. Once CI has published successfully, disallow token-based publishing in the package settings.
+3. A trusted-publisher config that has not completed a publish expires after 48 hours, so add it when you are about to merge the next version bump. After CI has published once, disallow token-based publishing in the package settings.
 
 ## License
 
