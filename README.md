@@ -135,10 +135,6 @@ All worktrees of a repo share one `.loopwright/` in the main worktree (found via
 - `uninstall` removes only manifest files whose content still matches what was installed, plus loopwright's own hook entries and Codex block (from the manifest's records and always from the target's `.claude/settings.json` and `.codex/config.toml`). Modified files are kept. `.claude/settings.json` and `.codex/config.toml` are never deleted, only cleaned of loopwright entries. `.loopwright/tasks/` and config are never touched.
 - Both accept `--global`, `--dry-run` and `--force` (`--force` skips confirmation prompts; for `update` it also overwrites files you edited).
 
-## Migrating from coding-agents-toolings
-
-`npx loopwright init` detects the old install: `spec-create`, `spec-update`, `spec-complete`, `spec-handoff` and `ide-mcp` skill directories, the `ide-mcp-context.mjs` hook files and settings entries, and the `coding-agents-toolings ide-mcp` block in `.codex/config.toml`. It lists them and removes them only after you confirm (`--force` confirms for you). `agent-specs/` is left alone.
-
 ## What loopwright never touches
 
 - `AGENTS.md` and `CLAUDE.md`: `init` never edits them. The Done stage may propose edits, applied only with your approval (if `CLAUDE.md` lacks `@AGENTS.md` it proposes the import rather than duplicating content).

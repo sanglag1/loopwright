@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`loopwright` (formerly `coding-agents-toolings`): an npm CLI (`npx loopwright init|update|uninstall`) that installs a Plan → Test → Build → Review → Done agent workflow (skills, subagents, enforcement hooks) into a git repo or the user's home. Claude Code is the primary, tested target; Codex support is work in progress. Zero runtime dependencies; Node >= 22.14, ESM, TypeScript.
+`loopwright`: an npm CLI (`npx loopwright init|update|uninstall`) that installs a Plan → Test → Build → Review → Done agent workflow (skills, subagents, enforcement hooks) into a git repo or the user's home. Claude Code is the primary, tested target; Codex support is work in progress. Zero runtime dependencies; Node >= 22.14, ESM, TypeScript.
 
 ## Commands
 
@@ -32,7 +32,7 @@ Releases: `npm version patch|minor|major` then `git push --follow-tags`; the `v*
   - `prompts/reviewer.md`, `schemas/verdict.json` — the reviewer procedure and verdict schema, also used for headless cross-model review.
 - `src/cli.ts` — `node:util` `parseArgs` dispatch to `src/commands/{init,update,uninstall}.ts`.
 - `src/core/` — `targets.ts` (repo vs global paths; `.loopwright/` lives in the main worktree), `config.ts` (`DEFAULT_CONFIG`), `manifest.ts` + `writer.ts` (hash manifest; all writes are idempotent and honor `dryRun`; user-edited files are kept).
-- `src/install/` — `install.ts` orchestrates; `claude-settings.ts` merges hooks into JSON, `codex-config.ts` upserts the `# BEGIN/END loopwright` TOML block, `symlink.ts` handles `.claude/skills`, `migrate.ts` detects old coding-agents-toolings installs, `loopwright-dir.ts` scaffolds `.loopwright/`.
+- `src/install/` — `install.ts` orchestrates; `claude-settings.ts` merges hooks into JSON, `codex-config.ts` upserts the `# BEGIN/END loopwright` TOML block, `symlink.ts` handles `.claude/skills`, `loopwright-dir.ts` scaffolds `.loopwright/`.
 
 ## Conventions
 

@@ -1,68 +1,74 @@
 name: Publish to npm
 
-# Runs when a version tag (e.g. v0.1.1, created by `npm version`) is pushed.
+# main is protected (PRs only), so a release is a merged PR that bumps package.json "version".
+# On every push to main this workflow releases that version if it hasn't been released yet:
+# tests, npm publish (trusted publishing / OIDC), then the vX.Y.Z tag + GitHub release.
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+  workflow_dispatch:  # retry a failed release from the Actions tab
 
 permissions:
-  id-token: write  # npm trusted publishing (OIDC)
-  contents: write  # create the GitHub release
+  id-token: write  # npm trusted publishing
+  contents: write  # create the tag and GitHub release
 
 concurrency:
-  group: publish-${{ github.ref }}
+  group: publish
   cancel-in-progress: false
 
 jobs:
   publish:
-    name: Publish ${{ github.ref_name }}
+    name: Release package.json version
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0  # needed to check the tag is on main
 
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
-      # Trusted publishing needs npm >= 11.5.1; don't depend on what Node 24 bundles.
-      - run: npm install -g npm@latest
-
-      - name: Check tag matches package.json and is on main
-        run: |
-          version=$(node -p "require('./package.json').version")
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $version"
-            exit 1
-          fi
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "::error::Tag $GITHUB_REF_NAME points to a commit that is not on main"
-            exit 1
-          fi
-          echo "VERSION=$version" >> "$GITHUB_ENV"
-
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-
-      # Idempotent: a version published by hand (e.g. the very first release) is skipped, not re-published.
-      - name: Publish to npm
-        run: |
-          if npm view "loopwright@$VERSION" version >/dev/null 2>&1; then
-            echo "loopwright@$VERSION is already on npm; skipping publish."
-          else
-            npm publish --access public
-          fi
-
-      - name: Create GitHub release
+      - name: Detect unreleased version
+        id: check
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            echo "Release $GITHUB_REF_NAME already exists; skipping."
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          on_npm=false; npm view "loopwright@$version" version >/dev/null 2>&1 && on_npm=true
+          released=false; gh release view "v$version" >/dev/null 2>&1 && released=true
+          echo "on_npm=$on_npm" >> "$GITHUB_OUTPUT"
+          echo "released=$released" >> "$GITHUB_OUTPUT"
+          if [ "$version" = "0.0.0" ]; then
+            echo "Version 0.0.0 is the unreleased placeholder; nothing to do."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          elif [ "$on_npm" = true ] && [ "$released" = true ]; then
+            echo "v$version is already published and released; nothing to do."
+            echo "release=false" >> "$GITHUB_OUTPUT"
           else
-            gh release create "$GITHUB_REF_NAME" --generate-notes
+            echo "Releasing v$version (on npm: $on_npm, GitHub release: $released)."
+            echo "release=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - if: steps.check.outputs.release == 'true'
+        run: npm ci
+      - if: steps.check.outputs.release == 'true'
+        run: npm run typecheck
+      - if: steps.check.outputs.release == 'true'
+        run: npm test
+
+      # Trusted publishing needs npm >= 11.5.1; don't depend on what Node 24 bundles.
+      # A version already on npm (e.g. the first one, published by hand) is not re-published.
+      - name: Publish to npm
+        if: steps.check.outputs.release == 'true' && steps.check.outputs.on_npm == 'false'
+        run: |
+          npm install -g npm@latest
+          npm publish --access public
+
+      # Runs only after a successful publish, so a failed publish leaves no tag and can be retried.
+      - name: Tag and create GitHub release
+        if: steps.check.outputs.release == 'true' && steps.check.outputs.released == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "v${{ steps.check.outputs.version }}" --target "$GITHUB_SHA" --title "v${{ steps.check.outputs.version }}" --generate-notes
