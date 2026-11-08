@@ -1,94 +1,115 @@
-import {gitRoot, isGitRepo} from '../utils/fs.js';
-import {log} from '../utils/log.js';
-import {writeSkills} from '../installer/write-skills.js';
-import {linkClaude} from '../installer/link-claude.js';
-import {installCodexHooks} from '../installer/codex-hooks.js';
-import {installClaudeHooks} from '../installer/claude-settings.js';
-import {ensureGitignore} from '../installer/gitignore.js';
+import { relative } from 'node:path';
+import type { CommandOptions } from '../core/options.js';
+import { NotAGitRepoError, resolveTargets, type Targets } from '../core/targets.js';
+import { readConfig } from '../core/config.js';
+import { readManifest, writeManifest, type Manifest } from '../core/manifest.js';
+import { InstallWriter } from '../core/writer.js';
+import { installAll, planWiring } from '../install/install.js';
+import { planLink } from '../install/symlink.js';
+import { scaffoldLoopwrightDir } from '../install/loopwright-dir.js';
+import { scanLegacy } from '../install/migrate.js';
+import { SettingsParseError } from '../install/claude-settings.js';
+import { confirm } from '../utils/prompt.js';
+import { log } from '../utils/log.js';
 
-export interface InitOptions {
-    force: boolean;
-    dryRun: boolean;
-    noSymlink: boolean;
-    hook: boolean;
+function makeWriter(targets: Targets, opts: CommandOptions): InstallWriter {
+  return new InstallWriter({
+    manifest: targets.manifestPath ? readManifest(targets.manifestPath) : null,
+    dryRun: opts.dryRun,
+    force: opts.force,
+    confirm: (q) => confirm(q, false),
+    toKey: (abs) => (targets.mode === 'repo' ? relative(targets.root, abs).split('\\').join('/') : abs),
+    mode: targets.mode,
+  });
 }
 
-export async function init(opts: InitOptions): Promise<void> {
-    const cwd = process.cwd();
+async function migrateLegacy(root: string, opts: CommandOptions): Promise<void> {
+  const { artifacts: legacy, warnings } = scanLegacy(root);
+  for (const w of warnings) log.warn(w);
+  if (legacy.length === 0) return;
+  if (opts.dryRun) {
+    for (const a of legacy) log.dim(`Would ask to remove legacy: ${a.description}`);
+    return;
+  }
+  log.info('Found files from the old coding-agents-toolings package:');
+  for (const a of legacy) log.dim(`  ${a.description}`);
+  if (!opts.force && !(await confirm('Remove these legacy coding-agents-toolings files?', false))) {
+    log.dim('Keeping legacy files.');
+    return;
+  }
+  for (const a of legacy) {
+    a.apply();
+    log.dim(`  Removed ${a.description}`);
+  }
+}
 
-    if (!isGitRepo(cwd)) {
-        log.error('Not inside a git repository. Run this from a git repo root.');
-        process.exit(1);
+export function runInit(opts: CommandOptions): Promise<number> {
+  return runInstall(opts, 'installed', true);
+}
+
+/** For update: reuse the hook/symlink options recorded in the manifest unless the flag was passed explicitly. */
+export function withRecordedOptions(opts: CommandOptions, recorded: Manifest['options']): CommandOptions {
+  if (!recorded) return opts;
+  return {
+    ...opts,
+    hook: opts.explicit?.hook ? opts.hook : recorded.hook,
+    symlink: opts.explicit?.symlink ? opts.symlink : recorded.symlink,
+  };
+}
+
+/** Shared install flow for `init` and `update`. */
+export async function runInstall(opts: CommandOptions, doneVerb: string, migrate = false): Promise<number> {
+  let targets: Targets;
+  try {
+    targets = resolveTargets(opts);
+    if (!migrate) {
+      // update (not init): keep the options the install was made with.
+      opts = withRecordedOptions(opts, readManifest(targets.manifestPath)?.options);
+      targets = resolveTargets(opts);
+    }
+  } catch (e) {
+    if (e instanceof NotAGitRepoError) {
+      console.error('loopwright: not a git repository (run inside a repo, or use --global)');
+      return 1;
+    }
+    throw e;
+  }
+  try {
+    planWiring(targets, opts); // pre-flight: abort before writing anything if settings are malformed
+    // Pre-flight: resolve the .claude/skills conflict (and any prompt) before writing anything.
+    const link = targets.claudeSkillsMode === 'symlink' ? await planLink({ root: targets.root, dryRun: opts.dryRun, force: opts.force }) : 'skip';
+    if (link === 'abort') {
+      console.error('loopwright: aborted; nothing was written.');
+      return 1;
+    }
+    if (migrate && targets.mode === 'repo') await migrateLegacy(targets.root, opts);
+    if (targets.mode === 'repo' && targets.stateDir) scaffoldLoopwrightDir(targets.stateDir, opts.dryRun);
+    const config = readConfig(targets.configPath);
+
+    if (targets.mode === 'global' && !opts.dryRun && !opts.force) {
+      log.info('The following changes would be made to your user configuration:');
+      const preview = { ...opts, dryRun: true };
+      const any = await installAll(targets, makeWriter(targets, preview), config, preview);
+      if (!any) log.dim('  (no changes)');
+      if (!(await confirm('Apply these changes to your user configuration?', false))) {
+        log.dim('No changes made.');
+        return 0;
+      }
     }
 
-    const root = gitRoot(cwd);
+    const writer = makeWriter(targets, opts);
+    const changed = await installAll(targets, writer, config, opts, link);
+    if (!opts.dryRun) writeManifest(targets.manifestPath, { ...writer.result(), options: { hook: opts.hook, symlink: opts.symlink } });
 
-    if (opts.dryRun) {
-        log.info('Dry run — no files will be written\n');
+    if (!changed) log.success('loopwright is already up to date.');
+    else if (!opts.dryRun) log.success(`loopwright ${doneVerb}.`);
+    if (targets.mode === 'repo' && opts.hook) log.info('Codex: trust this project and approve loopwright hooks via /hooks.');
+    return 0;
+  } catch (e) {
+    if (e instanceof SettingsParseError) {
+      console.error(e.message);
+      return 1;
     }
-
-    log.info(`Installing agent skills into ${log.bold(root)}\n`);
-
-    // Step 1: Write skill files
-    const skillsChanged = writeSkills({
-        root, dryRun: opts.dryRun, force: opts.force,
-    });
-
-    // Step 2: Create symlink
-    let symlinkChanged = false;
-    if (!opts.noSymlink) {
-        symlinkChanged = await linkClaude({
-            root, dryRun: opts.dryRun, force: opts.force,
-        });
-    } else {
-        log.dim('  Skipped symlink (--no-symlink)');
-    }
-
-    // Step 3: Install repo-local Codex and Claude hooks
-    let codexHooksChanged = false;
-    let claudeHooksChanged = false;
-    if (opts.hook) {
-        codexHooksChanged = installCodexHooks({
-            root, dryRun: opts.dryRun,
-        });
-        claudeHooksChanged = installClaudeHooks({
-            root, dryRun: opts.dryRun,
-        });
-    } else {
-        log.dim('  Skipped repo-local hooks (opt-in; use --hook)');
-    }
-
-    // Step 4: Ensure agent-specs/ is gitignored
-    const gitignoreChanged = ensureGitignore({root, dryRun: opts.dryRun});
-    const anyChanged = skillsChanged || symlinkChanged || codexHooksChanged || claudeHooksChanged || gitignoreChanged;
-
-    console.log();
-    if (opts.dryRun) {
-        log.info('Dry run complete. No files were modified.');
-    } else if (!anyChanged) {
-        log.success('Already up to date — no repo-local agent files changed.');
-    } else {
-        log.success('Done! Repo-local agent tooling is ready:');
-        log.dim('  .agents/skills/spec-create/SKILL.md');
-        log.dim('  .agents/skills/spec-update/SKILL.md');
-        log.dim('  .agents/skills/spec-complete/SKILL.md');
-        log.dim('  .agents/skills/spec-handoff/SKILL.md');
-        log.dim('  .agents/skills/ide-mcp/SKILL.md');
-        if (!opts.noSymlink) {
-            log.dim('  .claude/skills → ../.agents/skills');
-        }
-        if (opts.hook) {
-            log.dim('  .codex/config.toml');
-            log.dim('  .codex/hooks/ide-mcp-context.mjs');
-            log.dim('  .claude/settings.json');
-            log.dim('  .claude/hooks/ide-mcp-context.mjs');
-        }
-        console.log();
-        log.info('Use /spec-create, /spec-update, /spec-complete, and /spec-handoff in your agent workflow.');
-        if (opts.hook) {
-            log.info('Code-oriented prompts in Codex and Claude will also be nudged toward the repo-local ide-mcp skill.');
-        } else {
-            log.info('Use --hook if you also want repo-local Codex and Claude hook setup for ide-mcp.');
-        }
-    }
+    throw e;
+  }
 }
