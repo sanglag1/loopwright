@@ -135,16 +135,39 @@ All worktrees of a repo share one `.loopwright/` in the main worktree (found via
 - `uninstall` removes only manifest files whose content still matches what was installed, plus loopwright's own hook entries and Codex block (from the manifest's records and always from the target's `.claude/settings.json` and `.codex/config.toml`). Modified files are kept. `.claude/settings.json` and `.codex/config.toml` are never deleted, only cleaned of loopwright entries. `.loopwright/tasks/` and config are never touched.
 - Both accept `--global`, `--dry-run` and `--force` (`--force` skips confirmation prompts; for `update` it also overwrites files you edited).
 
-## Migrating from coding-agents-toolings
-
-`npx loopwright init` detects the old install: `spec-create`, `spec-update`, `spec-complete`, `spec-handoff` and `ide-mcp` skill directories, the `ide-mcp-context.mjs` hook files and settings entries, and the `coding-agents-toolings ide-mcp` block in `.codex/config.toml`. It lists them and removes them only after you confirm (`--force` confirms for you). `agent-specs/` is left alone.
-
 ## What loopwright never touches
 
 - `AGENTS.md` and `CLAUDE.md`: `init` never edits them. The Done stage may propose edits, applied only with your approval (if `CLAUDE.md` lacks `@AGENTS.md` it proposes the import rather than duplicating content).
 - Your `.gitignore`: `.loopwright/` ignores itself.
 - Your commits: the agent drafts messages but does not commit.
 - Anything under `.loopwright/tasks/` on update or uninstall.
+
+## Releasing (maintainers)
+
+`main` only accepts pull requests, so **a release is a merged PR that bumps the `version` in `package.json`**. On every push to `main`, `.github/workflows/publish.yml` checks whether that version is already released; if not, it:
+
+1. Runs `npm ci`, the typecheck, and the tests.
+2. Publishes to npm with trusted publishing (OIDC; no npm token in the repo). A version already on npm is not re-published.
+3. Creates the `vX.Y.Z` tag on the merge commit and a GitHub release with generated notes.
+
+Pushes that don't change the version (and the `0.0.0` placeholder) release nothing. A failed run leaves no tag; fix the cause, then re-run it from the Actions tab ("Run workflow" on `main`).
+
+**To release a new version:**
+
+```bash
+git switch main && git pull
+git switch -c release-x.y.z
+npm version patch --no-git-tag-version   # or minor / major; edits package.json + package-lock.json only
+git commit -am "release x.y.z"
+git push -u origin HEAD
+gh pr create --fill                       # merge it once CI is green
+```
+
+**One-time setup** (needed once, for the first release):
+
+1. Trusted publishing can only be configured for a package that already exists, so the first version is published by hand from the bump branch before merging: `npm login`, then `npm publish --access public` (`prepublishOnly` builds `dist/` first). Merging the PR then sees the version on npm and only creates the tag and release.
+2. On npmjs.com → `loopwright` → Settings → Trusted publishing, add GitHub Actions with repository `xuansontrinh/loopwright` and workflow `publish.yml`.
+3. A trusted-publisher config that has not completed a publish expires after 48 hours, so add it when you are about to merge the next version bump. After CI has published once, disallow token-based publishing in the package settings.
 
 ## License
 

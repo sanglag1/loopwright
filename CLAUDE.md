@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`loopwright` (formerly `coding-agents-toolings`): an npm CLI (`npx loopwright init|update|uninstall`) that installs a Plan → Test → Build → Review → Done agent workflow (skills, subagents, enforcement hooks) into a git repo or the user's home. Claude Code is the primary, tested target; Codex support is work in progress. Zero runtime dependencies; Node >= 22.14, ESM, TypeScript.
+`loopwright`: an npm CLI (`npx loopwright init|update|uninstall`) that installs a Plan → Test → Build → Review → Done agent workflow (skills, subagents, enforcement hooks) into a git repo or the user's home. Claude Code is the primary, tested target; Codex support is work in progress. Zero runtime dependencies; Node >= 22.14, ESM, TypeScript.
 
 ## Commands
 
@@ -21,7 +21,7 @@ Unit tests import `src/` directly. E2E tests spawn `dist/cli.js` in temp git rep
 
 CI: `.github/workflows/ci.yml` runs typecheck and tests on every PR and push to `main`, on Node 22.14 (the `engines` floor) and 24.
 
-Releases: `npm version patch` (produces the bare `0.1.x` commits and a `v*` tag); pushing the tag triggers `.github/workflows/publish.yml`, which builds, tests, publishes `loopwright` to npm via OIDC, and creates a GitHub release.
+Releases: `main` is PR-only; a release is a merged PR bumping `package.json` `version` (`npm version patch --no-git-tag-version`). `.github/workflows/publish.yml` runs on every push to `main` and, for a version not yet released, runs typecheck + tests, publishes to npm via OIDC (skipped if already on npm), then creates the `vX.Y.Z` tag and GitHub release. Steps and the one-time npm setup: README.md → "Releasing (maintainers)".
 
 ## Architecture
 
@@ -32,7 +32,7 @@ Releases: `npm version patch` (produces the bare `0.1.x` commits and a `v*` tag)
   - `prompts/reviewer.md`, `schemas/verdict.json` — the reviewer procedure and verdict schema, also used for headless cross-model review.
 - `src/cli.ts` — `node:util` `parseArgs` dispatch to `src/commands/{init,update,uninstall}.ts`.
 - `src/core/` — `targets.ts` (repo vs global paths; `.loopwright/` lives in the main worktree), `config.ts` (`DEFAULT_CONFIG`), `manifest.ts` + `writer.ts` (hash manifest; all writes are idempotent and honor `dryRun`; user-edited files are kept).
-- `src/install/` — `install.ts` orchestrates; `claude-settings.ts` merges hooks into JSON, `codex-config.ts` upserts the `# BEGIN/END loopwright` TOML block, `symlink.ts` handles `.claude/skills`, `migrate.ts` detects old coding-agents-toolings installs, `loopwright-dir.ts` scaffolds `.loopwright/`.
+- `src/install/` — `install.ts` orchestrates; `claude-settings.ts` merges hooks into JSON, `codex-config.ts` upserts the `# BEGIN/END loopwright` TOML block, `symlink.ts` handles `.claude/skills`, `loopwright-dir.ts` scaffolds `.loopwright/`.
 
 ## Conventions
 

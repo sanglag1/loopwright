@@ -1,16 +1,25 @@
 name: Publish to npm
 
+# main is protected (PRs only), so a release is a merged PR that bumps package.json "version".
+# On every push to main this workflow releases that version if it hasn't been released yet:
+# tests, npm publish (trusted publishing / OIDC), then the vX.Y.Z tag + GitHub release.
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+  workflow_dispatch:  # retry a failed release from the Actions tab
 
 permissions:
-  id-token: write  # Required for OIDC
-  contents: write
+  id-token: write  # npm trusted publishing
+  contents: write  # create the tag and GitHub release
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
 
 jobs:
   publish:
+    name: Release package.json version
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -19,12 +28,47 @@ jobs:
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-      - run: npm ci
-      - run: npm run build --if-present
-      - run: npm test
-      - run: npm publish --access public
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+
+      - name: Detect unreleased version
+        id: check
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" --generate-notes
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          on_npm=false; npm view "loopwright@$version" version >/dev/null 2>&1 && on_npm=true
+          released=false; gh release view "v$version" >/dev/null 2>&1 && released=true
+          echo "on_npm=$on_npm" >> "$GITHUB_OUTPUT"
+          echo "released=$released" >> "$GITHUB_OUTPUT"
+          if [ "$version" = "0.0.0" ]; then
+            echo "Version 0.0.0 is the unreleased placeholder; nothing to do."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          elif [ "$on_npm" = true ] && [ "$released" = true ]; then
+            echo "v$version is already published and released; nothing to do."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Releasing v$version (on npm: $on_npm, GitHub release: $released)."
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.check.outputs.release == 'true'
+        run: npm ci
+      - if: steps.check.outputs.release == 'true'
+        run: npm run typecheck
+      - if: steps.check.outputs.release == 'true'
+        run: npm test
+
+      # Trusted publishing needs npm >= 11.5.1; don't depend on what Node 24 bundles.
+      # A version already on npm (e.g. the first one, published by hand) is not re-published.
+      - name: Publish to npm
+        if: steps.check.outputs.release == 'true' && steps.check.outputs.on_npm == 'false'
+        run: |
+          npm install -g npm@latest
+          npm publish --access public
+
+      # Runs only after a successful publish, so a failed publish leaves no tag and can be retried.
+      - name: Tag and create GitHub release
+        if: steps.check.outputs.release == 'true' && steps.check.outputs.released == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "v${{ steps.check.outputs.version }}" --target "$GITHUB_SHA" --title "v${{ steps.check.outputs.version }}" --generate-notes

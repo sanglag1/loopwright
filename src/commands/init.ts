@@ -7,7 +7,6 @@ import { InstallWriter } from '../core/writer.js';
 import { installAll, planWiring } from '../install/install.js';
 import { planLink } from '../install/symlink.js';
 import { scaffoldLoopwrightDir } from '../install/loopwright-dir.js';
-import { scanLegacy } from '../install/migrate.js';
 import { SettingsParseError } from '../install/claude-settings.js';
 import { confirm } from '../utils/prompt.js';
 import { log } from '../utils/log.js';
@@ -21,26 +20,6 @@ function makeWriter(targets: Targets, opts: CommandOptions): InstallWriter {
     toKey: (abs) => (targets.mode === 'repo' ? relative(targets.root, abs).split('\\').join('/') : abs),
     mode: targets.mode,
   });
-}
-
-async function migrateLegacy(root: string, opts: CommandOptions): Promise<void> {
-  const { artifacts: legacy, warnings } = scanLegacy(root);
-  for (const w of warnings) log.warn(w);
-  if (legacy.length === 0) return;
-  if (opts.dryRun) {
-    for (const a of legacy) log.dim(`Would ask to remove legacy: ${a.description}`);
-    return;
-  }
-  log.info('Found files from the old coding-agents-toolings package:');
-  for (const a of legacy) log.dim(`  ${a.description}`);
-  if (!opts.force && !(await confirm('Remove these legacy coding-agents-toolings files?', false))) {
-    log.dim('Keeping legacy files.');
-    return;
-  }
-  for (const a of legacy) {
-    a.apply();
-    log.dim(`  Removed ${a.description}`);
-  }
 }
 
 export function runInit(opts: CommandOptions): Promise<number> {
@@ -58,11 +37,11 @@ export function withRecordedOptions(opts: CommandOptions, recorded: Manifest['op
 }
 
 /** Shared install flow for `init` and `update`. */
-export async function runInstall(opts: CommandOptions, doneVerb: string, migrate = false): Promise<number> {
+export async function runInstall(opts: CommandOptions, doneVerb: string, isInit = false): Promise<number> {
   let targets: Targets;
   try {
     targets = resolveTargets(opts);
-    if (!migrate) {
+    if (!isInit) {
       // update (not init): keep the options the install was made with.
       opts = withRecordedOptions(opts, readManifest(targets.manifestPath)?.options);
       targets = resolveTargets(opts);
@@ -82,7 +61,6 @@ export async function runInstall(opts: CommandOptions, doneVerb: string, migrate
       console.error('loopwright: aborted; nothing was written.');
       return 1;
     }
-    if (migrate && targets.mode === 'repo') await migrateLegacy(targets.root, opts);
     if (targets.mode === 'repo' && targets.stateDir) scaffoldLoopwrightDir(targets.stateDir, opts.dryRun);
     const config = readConfig(targets.configPath);
 
