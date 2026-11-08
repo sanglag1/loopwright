@@ -21,7 +21,7 @@ Unit tests import `src/` directly. E2E tests spawn `dist/cli.js` in temp git rep
 
 CI: `.github/workflows/ci.yml` runs typecheck and tests on every PR and push to `main`, on Node 22.14 (the `engines` floor) and 24.
 
-Releases: `npm version patch` (produces the bare `0.1.x` commits and a `v*` tag); pushing the tag triggers `.github/workflows/publish.yml`, which builds, tests, publishes `loopwright` to npm via OIDC, and creates a GitHub release.
+Releases: `npm version patch|minor|major` then `git push --follow-tags`; the `v*` tag triggers `.github/workflows/publish.yml` (tag/version and on-`main` checks, typecheck, tests, idempotent OIDC publish, GitHub release). Full steps and the one-time npm setup are in README.md → "Releasing".
 
 ## Architecture
 

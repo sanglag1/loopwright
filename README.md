@@ -146,6 +146,30 @@ All worktrees of a repo share one `.loopwright/` in the main worktree (found via
 - Your commits: the agent drafts messages but does not commit.
 - Anything under `.loopwright/tasks/` on update or uninstall.
 
+## Releasing (maintainers)
+
+Pushing a version tag publishes to npm. `.github/workflows/publish.yml` runs on any `v*` tag and:
+
+1. Checks the tag equals `v` + the `package.json` version, and that the tagged commit is on `main`.
+2. Runs `npm ci`, the typecheck, and the tests.
+3. Publishes with npm trusted publishing (OIDC; no npm token in the repo). A version already on npm is skipped, not re-published.
+4. Creates the GitHub release with generated notes.
+
+**To release a new version**, from an up-to-date `main` with a clean tree:
+
+```bash
+npm version patch   # or minor / major; bumps package.json, commits, tags vX.Y.Z
+git push --follow-tags
+```
+
+Then watch the "Publish to npm" run under Actions. A failed check (tag/version mismatch, tests) publishes nothing; fix, then delete and re-push the tag.
+
+**One-time setup** (already done once the package exists; repeat only if the publisher config is lost):
+
+1. The first version must be published by hand, because trusted publishing can only be configured for an existing package: `npm login`, then `npm publish --access public` (`prepublishOnly` builds `dist/` first).
+2. On npmjs.com → `loopwright` → Settings → Trusted publishing, add GitHub Actions with repository `xuansontrinh/loopwright` and workflow `publish.yml`.
+3. A trusted-publisher config that has not completed a publish expires after 48 hours, so release the next version via a tag soon after adding it. Once CI has published successfully, disallow token-based publishing in the package settings.
+
 ## License
 
 MIT
