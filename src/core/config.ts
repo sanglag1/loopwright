@@ -4,23 +4,31 @@ export type Role = 'scout' | 'tester' | 'implementer' | 'reviewer';
 
 export interface LoopwrightConfig {
   maxFixRounds: number;
-  crossModelReview: 'off' | 'codex' | 'claude';
+  crossAgentReview: 'off' | 'codex' | 'claude';
   docsDir: string;
   models: {
     claude: Record<Role, string>;
     codex: Record<Role, string> & { effort?: Partial<Record<Role, string>> };
-    crossModelReviewer: { claude: string; codex: string };
+    junie: Record<Role, string> & { effort?: Partial<Record<Role, string>> };
+    crossAgentReviewer: { claude: string; codex: string };
   };
 }
 
 export const DEFAULT_CONFIG: LoopwrightConfig = {
   maxFixRounds: 3,
-  crossModelReview: 'off',
+  crossAgentReview: 'off',
   docsDir: 'docs/agents',
   models: {
     claude: { scout: 'opus', tester: 'sonnet', implementer: 'sonnet', reviewer: 'opus' },
     codex: { scout: 'inherit', tester: 'inherit', implementer: 'inherit', reviewer: 'inherit' },
-    crossModelReviewer: { claude: 'opus', codex: 'inherit' },
+    junie: {
+      scout: 'opus',
+      tester: 'sonnet',
+      implementer: 'sonnet',
+      reviewer: 'gpt',
+      effort: { scout: 'medium', tester: 'medium', implementer: 'medium', reviewer: 'high' },
+    },
+    crossAgentReviewer: { claude: 'opus', codex: 'inherit' },
   },
 };
 

@@ -1,6 +1,6 @@
 {
   "maxFixRounds": 3,
-  "crossModelReview": "off",
+  "crossAgentReview": "off",
   "docsDir": "docs/agents",
   "models": {
     "claude": {
@@ -15,7 +15,19 @@
       "implementer": "inherit",
       "reviewer": "inherit"
     },
-    "crossModelReviewer": {
+    "junie": {
+      "scout": "opus",
+      "tester": "sonnet",
+      "implementer": "sonnet",
+      "reviewer": "gpt",
+      "effort": {
+        "scout": "medium",
+        "tester": "medium",
+        "implementer": "medium",
+        "reviewer": "high"
+      }
+    },
+    "crossAgentReviewer": {
       "claude": "opus",
       "codex": "inherit"
     }
