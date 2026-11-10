@@ -15,49 +15,62 @@ const cfg = (obj: unknown) => {
 };
 const frontmatter = (s: string) => /^---\n([\s\S]*?)\n---/.exec(s)![1]!;
 
-describe('AC1: renderClaudeAgent effort', () => {
-  it('AC1: emits effort in frontmatter when set', () => {
+describe('renderClaudeAgent effort', () => {
+  it('emits effort in frontmatter when set', () => {
     const out = renderClaudeAgent(reviewer(), 'opus', 'high');
     expect(frontmatter(out)).toMatch(/^effort: high$/m);
   });
-  it('AC1: omits effort when empty or missing', () => {
+  it('omits effort when empty or missing', () => {
     expect(renderClaudeAgent(reviewer(), 'opus', '')).not.toContain('effort:');
     expect(renderClaudeAgent(reviewer(), 'opus')).not.toContain('effort:');
   });
 });
 
-describe('AC2: defaults', () => {
-  it('AC2: DEFAULT_CONFIG carries no effort maps', () => {
+describe('defaults', () => {
+  it('DEFAULT_CONFIG carries no effort maps', () => {
     const m = DEFAULT_CONFIG.models as any;
     expect(m.claude.effort).toBeUndefined();
     expect(m.crossAgentReviewer.effort).toBeUndefined();
   });
-  it('AC2: default-config.json equals DEFAULT_CONFIG', () => {
+  it('default-config.json equals DEFAULT_CONFIG', () => {
     expect(JSON.parse(read('../content/hooks/default-config.json'))).toEqual(DEFAULT_CONFIG);
   });
 });
 
-describe('AC3: readConfig ignores per-role effort keys', () => {
-  it('AC3: invalid effort keys do not throw and are not applied', () => {
+describe('readConfig ignores per-role effort keys', () => {
+  it('invalid effort keys do not throw and are not applied', () => {
     const c = readConfig(
-      cfg({ models: { claude: { effort: { scout: 'bogus' } }, junie: { effort: { tester: 'none' } }, crossAgentReviewer: { effort: { claude: 'bogus' } } } }),
+      cfg({
+        models: {
+          claude: { effort: { scout: 'bogus' } },
+          junie: { effort: { tester: 'none' } },
+          crossAgentReviewer: { effort: { claude: 'bogus' } },
+        },
+      }),
     );
-    expect(c.models.claude.effort).toEqual({ scout: 'medium', tester: 'medium', implementer: 'medium', reviewer: 'high' });
+    expect(c.models.claude.effort).toEqual({
+      scout: 'medium',
+      tester: 'medium',
+      implementer: 'medium',
+      reviewer: 'high',
+    });
     expect(c.models.junie.effort?.tester).toBe('medium');
     expect(c.models.crossAgentReviewer.effort?.claude).toBe('high');
   });
 });
 
-describe('AC4: init/update write effort', () => {
-  const agentFile = (repo: string, role: string) => readFileSync(join(repo, `.claude/agents/loopwright-${role}.md`), 'utf8');
-  it('AC4: init writes default effort into Claude agents', () => {
+describe('init/update write effort', () => {
+  const agentFile = (repo: string, role: string) =>
+    readFileSync(join(repo, `.claude/agents/loopwright-${role}.md`), 'utf8');
+  it('init writes default effort into Claude agents', () => {
     const repo = createTempGitRepo('lw-eff-');
     const r = runCli(repo, ['init']);
     expect(r.exitCode, r.stderr).toBe(0);
-    for (const role of ['scout', 'tester', 'implementer']) expect(frontmatter(agentFile(repo, role))).toMatch(/^effort: medium$/m);
+    for (const role of ['scout', 'tester', 'implementer'])
+      expect(frontmatter(agentFile(repo, role))).toMatch(/^effort: medium$/m);
     expect(frontmatter(agentFile(repo, 'reviewer'))).toMatch(/^effort: high$/m);
   });
-  it('AC4: update ignores effort keys in config.json', () => {
+  it('update ignores effort keys in config.json', () => {
     const repo = createTempGitRepo('lw-eff-');
     const home = mkdtempSync(join(tmpdir(), 'lw-h-'));
     expect(runCli(repo, ['init'], { home }).exitCode).toBe(0);
@@ -73,8 +86,8 @@ describe('AC4: init/update write effort', () => {
   });
 });
 
-describe('AC5: review skill headless effort', () => {
-  it('AC5: headless claude -p call passes --effort from lw.mjs effort reviewer', () => {
+describe('review skill headless effort', () => {
+  it('headless claude -p call passes --effort from lw.mjs effort reviewer', () => {
     const s = read('../content/skills/loopwright-review/SKILL.md');
     const line = s.split('\n').find((l) => l.includes('claude -p'))!;
     expect(line).toContain('--effort');
