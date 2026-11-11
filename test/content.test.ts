@@ -52,6 +52,7 @@ describe('content', () => {
       'task state was force-restarted after Build began; user must confirm locked tests',
       'schemas/verdict.json',
       '`droppedCount` is a non-negative integer',
+      'exits non-zero on a changed or locked file',
     ]) {
       expect(p, s).toContain(s);
     }
@@ -75,6 +76,16 @@ describe('content', () => {
 
   it('tester references lw.mjs lock', () => {
     expect(agent('tester').body).toContain('node "{{LW_HOME}}/hooks/lw.mjs" lock');
+  });
+
+  it('tester runs the lint/format check before locking', () => {
+    const b = agent('tester').body;
+    expect(b).toContain("Run the repo's lint/format check");
+    expect(b).toContain('the check is clean, lock them');
+  });
+
+  it('implementer keeps line endings and checks them with git ls-files --eol', () => {
+    expect(agent('implementer').body).toContain('git ls-files --eol -- <changed files>');
   });
 
   it('tester treats an absent named module as the expected failure', () => {
@@ -194,6 +205,9 @@ describe('content', () => {
         'plan: draft',
         'plan: confirmed',
         '--force',
+        'git fetch --quiet',
+        'HEAD..@{u}',
+        'reader who does not know the code',
       ],
       'loopwright-test': ['lw.mjs" stage test', 'lw.mjs" status', 'lockedTests', 'plan: confirmed'],
       'loopwright-build': [
@@ -205,6 +219,9 @@ describe('content', () => {
         'lw.mjs" await-user',
         'lw.mjs" resume',
         'AskUserQuestion',
+        'git fetch --quiet',
+        'HEAD..@{u}',
+        'await-user "upstream changed"',
       ],
       'loopwright-review': [
         'lw.mjs" stage review',

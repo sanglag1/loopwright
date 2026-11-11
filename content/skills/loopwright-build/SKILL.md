@@ -15,6 +15,7 @@ The implementer subagent writes the code. This thread dispatches it and hands th
    - Header not `plan: confirmed` → stop; the plan is not confirmed yet, point the user to `/loopwright-plan`.
    - `standard` or `large` with no `lockedTests` (or, large, the current slice is still `[todo]`) → run `/loopwright-test` first.
    - `large` → the current slice is the first `S<n> [tested]` line; build only that slice. Every slice `[passed]` → this is a whole-branch fix round; no slice limit.
+5. `git fetch --quiet`, then `git log --oneline HEAD..@{u}` (and the same in any sibling repo the task touches; no upstream or offline → skip). New upstream commits that touch the task's files or feature → run `node "{{LW_HOME}}/hooks/lw.mjs" await-user "upstream changed"` and ask the user whether to pull first or stop (someone may already have done this work) before spawning the implementer. After the answer, run `node "{{LW_HOME}}/hooks/lw.mjs" resume` and record it as a decision `D<n> [asked]`.
 
 ## Steps
 

@@ -22,6 +22,7 @@ The main thread gives you the task file path, and on a fix round the reviewer's 
 - Follow `AGENTS.md` and the `docs/agents/` docs it links, and the patterns of nearby code (error handling, naming, layout, test style).
 - Prefer the simplest code path that does the job. Reuse existing helpers before adding new ones.
 - Comments explain why, briefly. State each rationale in exactly one place. Never restate what the code does.
+- Keep each file's line endings. On Windows an edit can rewrite a whole file with CRLF while git still shows only the changed lines; formatters then flag every line. After editing, `git ls-files --eol -- <changed files>` must not show `w/crlf` for a file whose index is `i/lf`; convert such a file back before running checks.
 
 ## Steps
 

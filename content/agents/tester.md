@@ -23,7 +23,7 @@ The main thread gives you the task file path. Read its acceptance criteria (`ACâ
 2. Run the new tests with the task's test command, targeting only your files.
 3. Confirm each test fails for the expected reason: the behavior is missing or wrong (assertion failure, missing export). A syntax error, a typo, an import path the task file does not name, or a crashing setup is the wrong reason; fix the test and rerun.
    When the module or interface the task file names does not exist yet, import it from that path. "Module not found" or a missing export at that path is the expected failure; one file-level excerpt covers every AC in that file. If the task file names no module path or interface for an AC, stop and report it under Needs.
-4. When every test fails for the right reason, lock them:
+4. Run the repo's lint/format check from the task's check commands (e.g. `npx eslint <file>`, `npx prettier --check <file>`) on every test file you wrote, and fix every error without changing what the tests assert. A pre-commit hook or CI that rejects a locked file fails the task later, and one that rewrites it breaks the lock hash. When every test fails for the right reason and the check is clean, lock them:
    `node "{{LW_HOME}}/hooks/lw.mjs" lock <test-file> [<test-file>â€¦]`
    Lock every acceptance test file and fixture you wrote. Locking only works in stage `test`; if it errors, report the error.
 
